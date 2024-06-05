@@ -1,17 +1,17 @@
 import os
-from datetime import datetime
+
 import validators
-import psycopg2
-from urllib.parse import urlparse
 from dotenv import load_dotenv
 from flask import Flask, render_template, redirect, request, flash, url_for
 
+from db import (get_url_by_id, get_url_by_name, get_checks_by_url_id,
+                add_url, get_all_urls, add_url_check)
+
 
 load_dotenv()
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
-
-db = os.getenv('DATABASE_URL')
 
 
 @app.route('/')
@@ -19,63 +19,41 @@ def index():
     return render_template('index.html')
 
 
-@app.route('/urls/<id>')
-def get_url(id):
-    connect = psycopg2.connect(db)
-    cursor = connect.cursor()
-    cursor.execute(
-        '''SELECT name, created_at FROM urls WHERE id = %s''', (id,)
-        )
-    data = cursor.fetchall()[0]
-    name = data[0]
-    time = data[1]
-    cursor.close()
-    connect.close()
-    return render_template(
-        'url_page.html',
-        id=id, name=name,
-        created_time=time)
-
-
 @app.route('/urls', methods=['GET', 'POST'])
 def get_urls():
-    connect = psycopg2.connect(db)
-    cursor = connect.cursor()
     if request.method == 'POST':
-        current_url = request.form['url']
-        if validators.url(current_url) is True:
-            cursor.execute(
-                '''SELECT name
-                FROM urls WHERE name = %s''', (current_url,))
-            if cursor.fetchone():
+        url_name = request.form['url']
+        if validators.url(url_name) is True:
+            url = get_url_by_name(url_name)
+            if url:
                 flash('Страница уже существует', category='alert-info')
-                cursor.execute(
-                    "SELECT id, name, created_at FROM urls WHERE name = %s",
-                    (current_url,)
-                    )
-                cur_id = cursor.fetchone()[0]
-                return redirect(url_for('get_url', id=cur_id))
+                url_id = url.id
+                return redirect(url_for('get_url', url_id=url_id))
             else:
-                cursor.execute(
-                   '''INSERT INTO urls (name, created_at) VALUES (%s, %s)''',
-                   (current_url, datetime.now())
-                )
-                connect.commit()
-                cursor.execute(
-                    "SELECT id, name, created_at FROM urls WHERE name = %s",
-                    (current_url,)
-                    )
-                cur_id = cursor.fetchone()[0]
+                url_id = add_url(url_name)
                 flash('Страница успешно добавлена', category='alert-success')
-                return redirect(url_for('get_url', id=cur_id))
+                return redirect(url_for('get_url', url_id=url_id))
         else:
             flash('Некорректный URL', category='alert-danger')
             return redirect(url_for('index'))
-    cursor.execute("SELECT * FROM urls ORDER BY id DESC")
-    urls = cursor.fetchall()
-    cursor.close()
-    connect.close()
+    urls = get_all_urls()
     return render_template('urls.html', urls=urls)
+
+
+@app.route('/urls/<int:url_id>')
+def get_url(url_id):
+    url = get_url_by_id(url_id)
+    if url is None:
+        pass
+    checks = get_checks_by_url_id(url_id)
+    return render_template('url_page.html', url=url, checks=checks)
+
+
+@app.route('/urls/<int:url_id>/checks', methods=['POST'])
+def url_checks(url_id):
+    add_url_check(url_id)
+    flash('Страница успешна проверена', 'alert-success')
+    return redirect(url_for('get_url', url_id=url_id))
 
 
 if __name__ == '__main__':
