@@ -4,7 +4,7 @@ import validators
 from dotenv import load_dotenv
 from flask import Flask, render_template, redirect, request, flash, url_for
 
-from db import (get_url_by_id, get_url_by_name, get_checks_by_url_id,
+from .db import (get_url_by_id, get_url_by_name, get_checks_by_url_id,
                 add_url, get_all_urls, add_url_check)
 
 
