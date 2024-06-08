@@ -32,7 +32,7 @@ def get_url_by_id(url_id):
 
 def get_url_by_name(url_name):
     with DBConnection() as cursor:
-        query = "SELECT * FROM urls WHERE id = %s"
+        query = "SELECT * FROM urls WHERE name = %s"
         cursor.execute(query, (url_name,))
         data = cursor.fetchone()
         return data
@@ -76,12 +76,18 @@ def get_all_urls():
 
 def add_url(url_name):
     with DBConnection() as cursor:
-        query = "INSERT INTO urls (name, created_at) VALUES (%s, %s)"
+        query = '''INSERT INTO urls (name, created_at)
+                VALUES (%s, %s) RETURNING id'''
         cursor.execute(query, (url_name, datetime.now()))
         return cursor.fetchone().id
 
 
-def add_url_check(url_id):
+def add_url_check(check_data):
     with DBConnection() as cursor:
-        query = "INSERT INTO url_checks(url_id, created_at) VALUES (%s, %s)"
-        cursor.execute(query, (url_id, datetime.now()))
+        query = ('INSERT INTO url_checks '
+                 '(url_id, status_code, h1, title, description, created_at) '
+                 'VALUES (%s, %s, %s, %s, %s, %s)')
+        values = (check_data.get('url_id'), check_data.get('status_code'),
+                  check_data.get('h1', ''), check_data.get('title', ''),
+                  check_data.get('description', ''), datetime.now())
+        cursor.execute(query, values)
