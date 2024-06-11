@@ -41,7 +41,7 @@ def get_urls():
                 return redirect(url_for('get_url', url_id=url_id))
         else:
             flash('Некорректный URL', category='alert-danger')
-            return redirect(url_for('index'))
+            return render_template('index.html'), 422
     urls = get_all_urls()
     return render_template('urls.html', urls=urls)
 
