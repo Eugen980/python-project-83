@@ -1,5 +1,4 @@
 import os
-from datetime import datetime
 
 from dotenv import load_dotenv
 import psycopg2
@@ -10,43 +9,42 @@ load_dotenv()
 DATABASE_URL = os.getenv('DATABASE_URL')
 
 
-class DBConnection:
-    def __enter__(self):
+def cursor(method):
+    def wrapper(self, *args):
         self.connection = psycopg2.connect(DATABASE_URL)
         self.cursor = self.connection.cursor(cursor_factory=NamedTupleCursor)
-        return self.cursor
-
-    def __exit__(self, exc_type, exc_value, traceback):
+        result = method(self, *args)
         self.cursor.close()
         self.connection.commit()
         self.connection.close()
+        return result
+    return wrapper
 
 
-def get_url_by_id(url_id):
-    with DBConnection() as cursor:
+class DBConnection:
+
+    @cursor
+    def get_url_by_id(self, url_id):
         query = "SELECT * FROM urls WHERE id = %s"
-        cursor.execute(query, (url_id,))
-        url = cursor.fetchone()
+        self.cursor.execute(query, (url_id,))
+        url = self.cursor.fetchone()
         return url
 
-
-def get_url_by_name(url_name):
-    with DBConnection() as cursor:
+    @cursor
+    def get_url_by_name(self, url_name):
         query = "SELECT * FROM urls WHERE name = %s"
-        cursor.execute(query, (url_name,))
-        data = cursor.fetchone()
+        self.cursor.execute(query, (url_name,))
+        data = self.cursor.fetchone()
         return data
 
-
-def get_checks_by_url_id(url_id):
-    with DBConnection() as cursor:
+    @cursor
+    def get_checks_by_url_id(self, url_id):
         query = "SELECT * FROM url_checks WHERE url_id = %s ORDER BY id DESC"
-        cursor.execute(query, (url_id,))
-        return cursor.fetchall()
+        self.cursor.execute(query, (url_id,))
+        return self.cursor.fetchall()
 
-
-def get_all_urls():
-    with DBConnection() as cursor:
+    @cursor
+    def get_all_urls(self):
         query = "SELECT * FROM urls ORDER BY id DESC;"
         checks_query = '''SELECT
                         url_id,
@@ -55,10 +53,10 @@ def get_all_urls():
                         FROM url_checks
                         GROUP BY url_id, status_code
                         ORDER BY created_at'''
-        cursor.execute(query)
-        urls = cursor.fetchall()
-        cursor.execute(checks_query)
-        checks = {item.url_id: item for item in cursor.fetchall()}
+        self.cursor.execute(query)
+        urls = self.cursor.fetchall()
+        self.cursor.execute(checks_query)
+        checks = {item.url_id: item for item in self.cursor.fetchall()}
         urls_list = []
         for url in urls:
             url_data = {
@@ -73,21 +71,19 @@ def get_all_urls():
 
         return urls_list
 
+    @cursor
+    def add_url(self, url_name):
+        query = '''INSERT INTO urls (name)
+                VALUES (%s) RETURNING id'''
+        self.cursor.execute(query, (url_name,))
+        return self.cursor.fetchone().id
 
-def add_url(url_name):
-    with DBConnection() as cursor:
-        query = '''INSERT INTO urls (name, created_at)
-                VALUES (%s, %s) RETURNING id'''
-        cursor.execute(query, (url_name, datetime.now()))
-        return cursor.fetchone().id
-
-
-def add_url_check(check_data):
-    with DBConnection() as cursor:
+    @cursor
+    def add_url_check(self, check_data):
         query = ('INSERT INTO url_checks '
-                 '(url_id, status_code, h1, title, description, created_at) '
-                 'VALUES (%s, %s, %s, %s, %s, %s)')
+                 '(url_id, status_code, h1, title, description) '
+                 'VALUES (%s, %s, %s, %s, %s)')
         values = (check_data.get('url_id'), check_data.get('status_code'),
                   check_data.get('h1', ''), check_data.get('title', ''),
-                  check_data.get('description', ''), datetime.now())
-        cursor.execute(query, values)
+                  check_data.get('description', ''))
+        self.cursor.execute(query, values)
