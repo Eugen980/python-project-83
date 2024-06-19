@@ -2,10 +2,17 @@ from validators import url
 from urllib.parse import urlparse
 
 
-def is_valid(url_name):
-    return url(url_name)
+def validate_url(url_name):
+    if not url_name:
+        return 'URL обязателен к заполнению'
+    elif not url(url_name):
+        return 'Некорректный URL'
+    elif len(url_name) > 255:
+        return 'Введенный URL превышает допустимую длину символов'
+    else:
+        return None
 
 
 def normalize(url_name):
     url = urlparse(url_name)
-    return url.scheme + '://' + url.hostname
+    return f'{url.scheme}://{url.hostname}'

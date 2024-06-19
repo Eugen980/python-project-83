@@ -1,50 +1,47 @@
-import os
-
-from dotenv import load_dotenv
 import psycopg2
 from psycopg2.extras import NamedTupleCursor
 
-load_dotenv()
-
-DATABASE_URL = os.getenv('DATABASE_URL')
-
-
-def cursor(method):
-    def wrapper(self, *args):
-        self.connection = psycopg2.connect(DATABASE_URL)
-        self.cursor = self.connection.cursor(cursor_factory=NamedTupleCursor)
-        result = method(self, *args)
-        self.cursor.close()
-        self.connection.commit()
-        self.connection.close()
-        return result
-    return wrapper
-
 
 class DBConnection:
+    def __init__(self, app):
+        self.app = app
 
-    @cursor
-    def get_url_by_id(self, url_id):
+    @staticmethod
+    def exec_with_in_db(func):
+        def inner(self, *args, commit=False, **kwargs):
+            try:
+                with psycopg2.connect(self.app.config['DATABASE_URL']) as conn:     # noqa: 501
+                    with conn.cursor(cursor_factory=NamedTupleCursor) as cursor:    # noqa: 501
+                        result = func(self, cursor, *args, **kwargs)
+                        if commit:
+                            conn.commit()
+                        return result
+            except psycopg2.Error as e:
+                raise e
+        return inner
+
+    @exec_with_in_db
+    def get_url_by_id(self, cursor, url_id):
         query = "SELECT * FROM urls WHERE id = %s"
-        self.cursor.execute(query, (url_id,))
-        url = self.cursor.fetchone()
+        cursor.execute(query, (url_id,))
+        url = cursor.fetchone()
         return url
 
-    @cursor
-    def get_url_by_name(self, url_name):
+    @exec_with_in_db
+    def get_url_by_name(self, cursor, url_name):
         query = "SELECT * FROM urls WHERE name = %s"
-        self.cursor.execute(query, (url_name,))
-        data = self.cursor.fetchone()
+        cursor.execute(query, (url_name,))
+        data = cursor.fetchone()
         return data
 
-    @cursor
-    def get_checks_by_url_id(self, url_id):
+    @exec_with_in_db
+    def get_checks_by_url_id(self, cursor, url_id):
         query = "SELECT * FROM url_checks WHERE url_id = %s ORDER BY id DESC"
-        self.cursor.execute(query, (url_id,))
-        return self.cursor.fetchall()
+        cursor.execute(query, (url_id,))
+        return cursor.fetchall()
 
-    @cursor
-    def get_all_urls(self):
+    @exec_with_in_db
+    def get_all_urls(self, cursor):
         query = "SELECT * FROM urls ORDER BY id DESC;"
         checks_query = '''SELECT
                         url_id,
@@ -53,10 +50,10 @@ class DBConnection:
                         FROM url_checks
                         GROUP BY url_id, status_code
                         ORDER BY created_at'''
-        self.cursor.execute(query)
-        urls = self.cursor.fetchall()
-        self.cursor.execute(checks_query)
-        checks = {item.url_id: item for item in self.cursor.fetchall()}
+        cursor.execute(query)
+        urls = cursor.fetchall()
+        cursor.execute(checks_query)
+        checks = {item.url_id: item for item in cursor.fetchall()}
         urls_list = []
         for url in urls:
             url_data = {
@@ -71,19 +68,19 @@ class DBConnection:
 
         return urls_list
 
-    @cursor
-    def add_url(self, url_name):
+    @exec_with_in_db
+    def add_url(self, cursor, url_name, commit=True):
         query = '''INSERT INTO urls (name)
                 VALUES (%s) RETURNING id'''
-        self.cursor.execute(query, (url_name,))
-        return self.cursor.fetchone().id
+        cursor.execute(query, (url_name,))
+        return cursor.fetchone().id
 
-    @cursor
-    def add_url_check(self, check_data):
+    @exec_with_in_db
+    def add_url_check(self, cursor, check_data, commit=True):
         query = ('INSERT INTO url_checks '
                  '(url_id, status_code, h1, title, description) '
                  'VALUES (%s, %s, %s, %s, %s)')
         values = (check_data.get('url_id'), check_data.get('status_code'),
                   check_data.get('h1', ''), check_data.get('title', ''),
                   check_data.get('description', ''))
-        self.cursor.execute(query, values)
+        cursor.execute(query, values)

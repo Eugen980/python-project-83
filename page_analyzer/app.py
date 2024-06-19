@@ -4,7 +4,7 @@ import requests
 from dotenv import load_dotenv
 from flask import Flask, render_template, redirect, request, flash, url_for
 
-from page_analyzer.utils import is_valid, normalize
+from page_analyzer.utils import validate_url, normalize
 from page_analyzer.html_parser import parse_page
 from page_analyzer.db import DBConnection
 
@@ -13,8 +13,9 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+app.config['DATABASE_URL'] = os.getenv('DATABASE_URL')
 
-db_manager = DBConnection()
+db_manager = DBConnection(app)
 
 
 @app.route('/')
@@ -25,20 +26,22 @@ def index():
 @app.post('/urls')
 def add_urls():
     url = request.form.get('url')
-    if is_valid(url):
-        url_name = normalize(url)
-        url = db_manager.get_url_by_name(url_name)
-        if url:
-            flash('Страница уже существует', category='alert-info')
-            url_id = url.id
-            return redirect(url_for('get_url', url_id=url_id))
-        else:
-            url_id = db_manager.add_url(url_name)
-            flash('Страница успешно добавлена', category='alert-success')
-            return redirect(url_for('get_url', url_id=url_id))
-    else:
-        flash('Некорректный URL', category='alert-danger')
+    normal_url = normalize(url)
+    validation_error = validate_url(normal_url)
+
+    if validation_error:
+        flash(validation_error, category='alert-danger')
         return render_template('index.html'), 422
+
+    url = db_manager.get_url_by_name(normal_url)
+    if url:
+        flash('Страница уже существует', category='alert-info')
+        url_id = url.id
+        return redirect(url_for('get_url', url_id=url_id))
+
+    url_id = db_manager.add_url(normal_url)
+    flash('Страница успешно добавлена', category='alert-success')
+    return redirect(url_for('get_url', url_id=url_id))
 
 
 @app.get('/urls')
@@ -51,9 +54,14 @@ def get_urls():
 def get_url(url_id):
     url = db_manager.get_url_by_id(url_id)
     if url is None:
-        return redirect(url_for('index'))
+        return render_template('errors/error404.html')
     checks = db_manager.get_checks_by_url_id(url_id)
     return render_template('url_page.html', url=url, checks=checks)
+
+
+@app.errorhandler(404)
+def page_not_found(error):
+    return render_template('errors/error404.html'), 404
 
 
 @app.post('/urls/<int:url_id>/checks')
