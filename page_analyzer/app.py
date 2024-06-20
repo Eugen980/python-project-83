@@ -2,7 +2,10 @@ import os
 
 import requests
 from dotenv import load_dotenv
-from flask import Flask, render_template, redirect, request, flash, url_for
+from flask import (
+    Flask, render_template,
+    redirect, request, flash, url_for, abort
+    )
 
 from page_analyzer.utils import validate_url, normalize
 from page_analyzer.html_parser import parse_page
@@ -54,7 +57,7 @@ def get_urls():
 def get_url(url_id):
     url = db_manager.get_url_by_id(url_id)
     if url is None:
-        return render_template('errors/error404.html')
+        abort(404)
     checks = db_manager.get_checks_by_url_id(url_id)
     return render_template('url_page.html', url=url, checks=checks)
 
