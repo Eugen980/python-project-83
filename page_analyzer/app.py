@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from flask import (
                     Flask, render_template,
                     redirect, request, flash, url_for, abort
-                )
+        )
 
 from page_analyzer.utils import validate_url, normalize
 from page_analyzer.html_parser import parse_page
