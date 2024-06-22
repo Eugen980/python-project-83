@@ -45,4 +45,6 @@ make dev
 ***
 ### Демонтсрация работы программы
 
+![bandicam 2024-06-22 18-59-57-530](https://github.com/Eugen980/python-project-83/assets/144818317/81813e49-6b36-42c9-8476-de43f783b363)
+
 [_https://python-project-83-q4ur.onrender.com_](https://python-project-83-q4ur.onrender.com)

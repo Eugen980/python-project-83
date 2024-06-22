@@ -9,8 +9,6 @@ def validate_url(url_name):
         return 'Некорректный URL'
     elif len(url_name) > 255:
         return 'Введенный URL превышает допустимую длину символов'
-    else:
-        return None
 
 
 def normalize(url_name):

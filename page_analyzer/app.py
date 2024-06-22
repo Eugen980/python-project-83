@@ -1,7 +1,6 @@
 import os
 
 import requests
-from dotenv import load_dotenv
 from flask import (Flask, render_template, redirect,
                    request, flash, url_for, abort)
 
@@ -11,7 +10,11 @@ from page_analyzer.html_parser import parse_page
 from page_analyzer.db import DBConnection
 
 
-load_dotenv()
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ModuleNotFoundError:
+    pass
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
@@ -20,7 +23,7 @@ app.config['DATABASE_URL'] = os.getenv('DATABASE_URL')
 db_manager = DBConnection(app)
 
 
-@app.route('/')
+@app.get('/')
 def index():
     return render_template('index.html')
 
@@ -39,21 +42,21 @@ def add_urls():
     if url:
         flash('Страница уже существует', category='alert-info')
         url_id = url.id
-        return redirect(url_for('get_url', url_id=url_id))
+        return redirect(url_for('show_url', url_id=url_id))
 
     url_id = db_manager.add_url(normal_url)
     flash('Страница успешно добавлена', category='alert-success')
-    return redirect(url_for('get_url', url_id=url_id))
+    return redirect(url_for('show_url', url_id=url_id))
 
 
 @app.get('/urls')
-def get_urls():
+def show_urls():
     urls = db_manager.get_all_urls()
     return render_template('urls.html', urls=urls)
 
 
-@app.route('/urls/<int:url_id>')
-def get_url(url_id):
+@app.get('/urls/<int:url_id>')
+def show_url(url_id):
     url = db_manager.get_url_by_id(url_id)
     if url is None:
         abort(404)
@@ -66,15 +69,20 @@ def page_not_found(error):
     return render_template('errors/error404.html'), 404
 
 
+@app.errorhandler(500)
+def server_errors(error):
+    return render_template('errors/error500.html'), 500
+
+
 @app.post('/urls/<int:url_id>/checks')
-def url_checks(url_id):
+def show_checks(url_id):
     url = db_manager.get_url_by_id(url_id)
     try:
         response = requests.get(url.name)
         response.raise_for_status()
     except requests.exceptions.RequestException:
         flash('Произошла ошибка при проверке', 'alert-danger')
-        return redirect(url_for('get_url', url_id=url_id))
+        return redirect(url_for('show_url', url_id=url_id))
 
     check_data = parse_page(response.text)
     check_data['url_id'] = url_id
@@ -82,8 +90,4 @@ def url_checks(url_id):
 
     db_manager.add_url_check(check_data)
     flash('Страница успешно проверена', 'alert-success')
-    return redirect(url_for('get_url', url_id=url_id))
-
-
-if __name__ == '__main__':
-    app.run(debug=True)
+    return redirect(url_for('show_url', url_id=url_id))

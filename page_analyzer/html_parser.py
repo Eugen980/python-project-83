@@ -15,7 +15,6 @@ def parse_page(content):
     return {
         'h1': h1.text[:255] if h1 else '',
         'title': title.text[:255] if title else '',
-        'description': truncate(description.get(
-            'content', ''
-        )) if description else ''
+        'description': (description.get('content', '')[:255]
+                        if description else '')
     }
